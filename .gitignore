@@ -22,6 +22,7 @@ router/data/processed/
 *.safetensors
 router/**/checkpoints/
 router/**/runs/
+router/bandit/state/
 wandb/
 
 # Env / secrets
