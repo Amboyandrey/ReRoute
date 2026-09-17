@@ -1,0 +1,6 @@
+apiVersion: v2
+name: reroute
+description: ReRoute — learned LLM router gateway (gateway, router service, vLLM cheap tier)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

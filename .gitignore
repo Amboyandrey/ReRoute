@@ -1,0 +1,45 @@
+# Go
+gateway/bin/
+*.exe
+*.test
+*.out
+
+# Python
+router/.venv/
+router/__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Data / models / artifacts
+router/data/raw/
+router/data/processed/
+*.parquet
+*.onnx
+*.safetensors
+router/**/checkpoints/
+router/**/runs/
+wandb/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Infra
+infra/k3s/kubeconfig*
+*.tfstate
+*.tfstate.*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log

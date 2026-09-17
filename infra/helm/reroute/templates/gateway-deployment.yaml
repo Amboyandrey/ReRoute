@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    app: {{ .Release.Name }}-gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-gateway
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          args: ["-config", "/etc/reroute/config.yaml"]
+          ports:
+            - containerPort: {{ .Values.gateway.port }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.providerKeysSecretName }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/reroute
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.gateway.port }} }
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.gateway.port }} }
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-gateway-config
