@@ -22,7 +22,11 @@ from pydantic import BaseModel
 
 logger = logging.getLogger("reroute.router")
 
-DEFAULT_CHECKPOINT_DIR = Path(__file__).resolve().parents[3] / "supervised" / "checkpoints" / "v1"
+ROUTER_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_CHECKPOINT_DIR = ROUTER_ROOT / "supervised" / "checkpoints" / "v1"
+DEFAULT_BANDIT_STATE_PATH = ROUTER_ROOT / "bandit" / "state" / "v1.npz"
+BANDIT_TIERS = ["cheap", "strong"]
+BANDIT_CONTEXT_DIM_FEATURES = 128  # see reroute_router.bandit.features.DEFAULT_DIM
 
 app = FastAPI(title="ReRoute router", version="0.1.0")
 
@@ -34,6 +38,13 @@ class RouteRequest(BaseModel):
 class RouteResponse(BaseModel):
     tier: str
     confidence: float
+
+
+class FeedbackRequest(BaseModel):
+    prompt: str
+    tier: str
+    quality: float
+    cost_usd: float = 0.0
 
 
 class Policy:
@@ -114,27 +125,87 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
     return e / e.sum()
 
 
+class BanditPolicy(Policy):
+    """Phase 3: LinUCB contextual bandit over hashed bag-of-words prompt
+    features (see `reroute_router.bandit`). Unlike the rule and supervised
+    policies, this one learns online: `/feedback` calls update it in
+    place, and state is persisted to disk after every update so learning
+    survives a service restart.
+    """
+
+    def __init__(self, state_path: Path):
+        from reroute_router.bandit.features import Featurizer
+        from reroute_router.bandit.policy import LinUCBRouter
+
+        self.state_path = state_path
+        self.featurizer = Featurizer(n_features=BANDIT_CONTEXT_DIM_FEATURES)
+        if state_path.exists():
+            self.router = LinUCBRouter.load(state_path)
+        else:
+            cost_lambda = float(os.environ.get("ROUTER_BANDIT_COST_LAMBDA", "100"))
+            self.router = LinUCBRouter(
+                BANDIT_TIERS, context_dim=self.featurizer.dim, cost_lambda=cost_lambda
+            )
+
+    def decide(self, prompt: str) -> RouteResponse:
+        ctx = self.featurizer.transform_one(prompt)
+        scores = self.router.scores(ctx)
+        tier = max(scores, key=scores.get)
+        # LinUCB scores aren't probabilities; squash the margin between the
+        # chosen and runner-up arm into (0.5, 1) so `confidence` stays
+        # comparable in shape to the other policies' outputs.
+        sorted_scores = sorted(scores.values(), reverse=True)
+        margin = sorted_scores[0] - sorted_scores[1] if len(sorted_scores) > 1 else 0.0
+        confidence = float(1.0 / (1.0 + np.exp(-margin)))
+        return RouteResponse(tier=tier, confidence=confidence)
+
+    def learn(self, prompt: str, tier: str, quality: float, cost_usd: float) -> None:
+        ctx = self.featurizer.transform_one(prompt)
+        self.router.update(tier, ctx, quality, cost_usd)
+        self.router.save(self.state_path)
+
+
 def _load_policy() -> Policy:
-    """Loads the supervised policy if a trained checkpoint is present,
-    otherwise falls back to the rule baseline. Mirrors the gateway's own
-    fallback-when-unavailable design: the serving path degrades gracefully
-    rather than failing to start.
+    """Picks the best available policy, in order: an explicit
+    `ROUTER_POLICY` override, then a persisted bandit state file, then a
+    trained supervised checkpoint, then the rule baseline. Any load
+    failure falls back to the rule policy rather than refusing to start —
+    same fail-open design as the gateway's own router fallback.
     """
     checkpoint_dir = Path(os.environ.get("ROUTER_CHECKPOINT_DIR", str(DEFAULT_CHECKPOINT_DIR)))
-    onnx_path = checkpoint_dir / "model.onnx"
-    if not onnx_path.exists():
-        logger.info("no supervised checkpoint at %s, using rule policy", onnx_path)
-        return RulePolicy()
-    try:
+    bandit_state_path = Path(
+        os.environ.get("ROUTER_BANDIT_STATE_PATH", str(DEFAULT_BANDIT_STATE_PATH))
+    )
+    forced = os.environ.get("ROUTER_POLICY", "").strip().lower()
+
+    def load_bandit() -> Policy:
+        policy = BanditPolicy(bandit_state_path)
+        logger.info("loaded bandit policy (state=%s)", bandit_state_path)
+        return policy
+
+    def load_supervised() -> Policy:
         threshold = float(os.environ.get("ROUTER_SUPERVISED_THRESHOLD", "0.5"))
         policy = SupervisedPolicy(checkpoint_dir, threshold=threshold)
         logger.info("loaded supervised policy from %s (threshold=%.2f)", checkpoint_dir, threshold)
         return policy
+
+    try:
+        if forced == "bandit":
+            return load_bandit()
+        if forced == "supervised":
+            return load_supervised()
+        if forced == "rule":
+            return RulePolicy()
+        if bandit_state_path.exists():
+            return load_bandit()
+        if (checkpoint_dir / "model.onnx").exists():
+            return load_supervised()
     except Exception:
-        logger.exception(
-            "failed to load supervised policy from %s, using rule policy", checkpoint_dir
-        )
+        logger.exception("failed to load a trained policy, falling back to rule policy")
         return RulePolicy()
+
+    logger.info("no trained policy found, using rule policy")
+    return RulePolicy()
 
 
 _policy: Policy = _load_policy()
@@ -150,6 +221,22 @@ def route(req: RouteRequest) -> RouteResponse:
     decision = _policy.decide(req.prompt)
     logger.info("route decision", extra={"tier": decision.tier, "prompt_len": len(req.prompt)})
     return decision
+
+
+@app.post("/feedback")
+def feedback(req: FeedbackRequest) -> dict[str, str]:
+    """Online-learning hook: updates the bandit policy from an observed
+    outcome (test passed, judge score, thumbs up/down mapped to quality).
+    A no-op (reported, not an error) when the loaded policy can't learn
+    from feedback — the rule and supervised policies are both fixed once
+    loaded. The plan's `POST /v1/feedback` gateway route isn't wired up
+    yet (see docs/phase3_bandit.md); this endpoint is what it would call.
+    """
+    if not isinstance(_policy, BanditPolicy):
+        logger.info("feedback received but active policy can't learn from it, ignoring")
+        return {"status": "ignored", "reason": "active policy is not a learning policy"}
+    _policy.learn(req.prompt, req.tier, req.quality, req.cost_usd)
+    return {"status": "ok"}
 
 
 def run() -> None:
