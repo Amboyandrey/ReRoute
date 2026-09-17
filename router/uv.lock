@@ -2143,6 +2143,7 @@ bandit = [
 data = [
     { name = "anthropic" },
     { name = "datasets" },
+    { name = "huggingface-hub" },
     { name = "openai" },
     { name = "tqdm" },
 ]
@@ -2170,6 +2171,7 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'data'", specifier = ">=3.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "huggingface-hub", marker = "extra == 'data'", specifier = ">=0.26" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "onnx", marker = "extra == 'train'", specifier = ">=1.17" },
     { name = "onnxruntime", marker = "extra == 'train'", specifier = ">=1.19" },
