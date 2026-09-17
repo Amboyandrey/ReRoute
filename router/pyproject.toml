@@ -15,6 +15,12 @@ dependencies = [
     "numpy>=2.1",
     "pandas>=2.2",
     "pyarrow>=17.0",
+    # Serving-time inference for the supervised router (Phase 2): ONNX
+    # Runtime + the standalone tokenizers library are enough to run the
+    # exported classifier without pulling in torch/transformers/peft, which
+    # are only needed for training.
+    "onnxruntime>=1.19",
+    "tokenizers>=0.20",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +41,8 @@ train = [
     "scikit-learn>=1.5",
     "onnx>=1.17",
     "onnxruntime>=1.19",
+    # torch's ONNX exporter (torch>=2.5) requires onnxscript at export time.
+    "onnxscript>=0.1",
 ]
 # Contextual bandit training + offline replay evaluation.
 bandit = [

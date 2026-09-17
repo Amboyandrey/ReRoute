@@ -1,8 +1,20 @@
+import pytest
 from fastapi.testclient import TestClient
 
+import reroute_router.serve.main as main
 from reroute_router.serve.main import RulePolicy, app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def force_rule_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The /route endpoint tests below exercise the *rule* baseline
+    # specifically. `_load_policy()` swaps in the trained supervised
+    # policy automatically whenever a checkpoint exists on disk (e.g. after
+    # running Phase 2 training locally), which would make these tests
+    # depend on model quality instead of the rule it's meant to test.
+    monkeypatch.setattr(main, "_policy", RulePolicy())
 
 
 def test_healthz() -> None:
