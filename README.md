@@ -9,6 +9,32 @@ from outcomes where to draw the line.
 See [`docs/PLAN.md`](docs/PLAN.md) for the full project plan, architecture,
 and build phases.
 
+## Results
+
+Three routers, evaluated on the same held-out RouterBench test prompts,
+routing between `mistral-7b-chat` (weak/cheap) and `gpt-4-1106-preview`
+(strong) — so they land on one comparable cost-quality curve.
+
+| Router | Best real win over the baselines |
+|---|---|
+| Rules (length/random thresholds) | `length_threshold_200` reaches 98% of strong-model quality, but only ~5% cheaper — length alone is a weak signal here |
+| Supervised (LoRA-tuned ModernBERT) | Matches `length_threshold_500`'s quality at **58% lower cost** |
+| Contextual bandit (LinUCB) | Beats `length_threshold_500` at **63% lower cost** — a bigger win than the supervised router, from a simpler model, because it adapts online instead of committing to one fixed threshold |
+
+- **Self-hosted cheap tier** (vLLM, RTX 4060 Laptop, 8GB VRAM): 72 → 959
+  tokens/sec across concurrency 1→16, p95 latency only 2.8s → 3.4s, zero
+  errors. [Full numbers](docs/benchmarks.md).
+- **Deliberately induced failure case**: a biased reward signal (a lenient
+  judge overscoring the cheap tier) shifts 7.5% more traffic to it and
+  costs 0.037 in true quality — a reproducible demonstration that the
+  bandit can't detect a bad reward signal on its own.
+  [Details](docs/phase3_bandit.md).
+
+Full write-ups: [Phase 1 baselines](docs/phase1_baseline_curve.md) ·
+[Phase 2 supervised router](docs/phase2_supervised_curve.md) ·
+[Phase 3 bandit](docs/phase3_bandit.md) ·
+[Phase 6 Kubernetes](docs/phase6_kubernetes.md)
+
 ## Repo layout
 
 ```
