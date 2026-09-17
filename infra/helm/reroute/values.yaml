@@ -23,12 +23,34 @@ router:
     limits: { cpu: 1, memory: 1Gi }
 
 vllm:
-  enabled: false # enable once a GPU node pool is available
+  enabled: false # set true once the NVIDIA device plugin is installed (infra/k3s/bootstrap.sh)
   image:
     repository: vllm/vllm-openai
     tag: latest
+  # RuntimeClass to run the pod under. Only needed when "nvidia" isn't the
+  # container runtime's default (true for a k3s cluster where it's
+  # registered as an optional RuntimeClass, per infra/k3s/bootstrap.sh) --
+  # set to "" if your cluster's default runtime already has GPU support.
+  runtimeClassName: nvidia
   model: "Qwen/Qwen2.5-1.5B-Instruct"
   port: 8001
+  extraArgs:
+    - "--gpu-memory-utilization"
+    - "0.85"
+    - "--max-model-len"
+    - "8192"
+    # CUDA graph capture in the vllm-openai image crashed with
+    # `torch.AcceleratorError: CUDA error: an illegal instruction was
+    # encountered` on the very first real request on this GPU
+    # (RTX 4060 Laptop) + driver combo, even though the same vLLM version
+    # ran fine bare-metal outside Docker (see infra/vllm/README.md).
+    # --enforce-eager skips CUDA graph capture entirely, trading some
+    # throughput for correctness.
+    - "--enforce-eager"
+  # See infra/vllm/README.md: vLLM's default sampler JIT-compiles a CUDA
+  # kernel and needs nvcc (the full CUDA toolkit), which the vllm-openai
+  # image doesn't ship. Same fix as the local dev setup.
+  disableFlashinferSampler: true
   resources:
     limits:
       nvidia.com/gpu: 1
