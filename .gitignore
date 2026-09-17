@@ -6,6 +6,7 @@ gateway/bin/
 
 # Python
 router/.venv/
+infra/vllm/.venv/
 router/__pycache__/
 **/__pycache__/
 *.pyc
@@ -32,6 +33,7 @@ wandb/
 
 # Infra
 infra/k3s/kubeconfig*
+gateway/config.yaml
 *.tfstate
 *.tfstate.*
 
