@@ -21,6 +21,7 @@ dependencies = [
 # Dataset building and LLM-judge grading against provider APIs.
 data = [
     "datasets>=3.0",
+    "huggingface-hub>=0.26",
     "anthropic>=0.40",
     "openai>=1.54",
     "tqdm>=4.66",
