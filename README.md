@@ -24,16 +24,23 @@ ReRoute/
 
 ## Quickstart
 
+Three services, three shells. Verified end-to-end on an RTX 4060 Laptop
+(8GB VRAM) — see [`docs/benchmarks.md`](docs/benchmarks.md) for numbers.
+
 ```bash
-# Router service (defaults to a length-based rule baseline until Phase 2
-# trains the real classifier)
+# 1. Cheap tier: vLLM serving the local model on your GPU
+cd infra/vllm && uv venv --python 3.12 .venv && uv pip install vllm httpx --python .venv
+./run.sh
+
+# 2. Router service (defaults to a length-based rule baseline until Phase 2
+#    trains the real classifier)
 cd router && uv sync --group dev && uv run reroute-serve
 
-# Gateway (in another shell)
+# 3. Gateway
 cd gateway && cp config.example.yaml config.yaml && go run ./cmd/gateway -config config.yaml
 ```
 
-Then, with the .env values from `.env.example` exported:
+Then:
 
 ```bash
 curl http://localhost:8080/v1/chat/completions \
@@ -41,6 +48,10 @@ curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hello"}]}'
 ```
+
+The `mid` and `strong` tiers need `NEBIUS_API_KEY` / `ANTHROPIC_API_KEY` set
+(see `.env.example`) — without them, only short prompts routed to `cheap`
+will succeed.
 
 ## Development
 
