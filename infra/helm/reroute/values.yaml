@@ -1,0 +1,45 @@
+# Default values for the ReRoute chart. Override with -f or --set.
+
+gateway:
+  image:
+    repository: reroute-gateway
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+router:
+  image:
+    repository: reroute-router
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 9000
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+vllm:
+  enabled: false # enable once a GPU node pool is available
+  image:
+    repository: vllm/vllm-openai
+    tag: latest
+  model: "Qwen/Qwen2.5-1.5B-Instruct"
+  port: 8001
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+
+secrets:
+  # Name of a pre-created Kubernetes Secret with ANTHROPIC_API_KEY,
+  # OPENAI_API_KEY, NEBIUS_API_KEY. Create it yourself, e.g.:
+  #   kubectl create secret generic reroute-provider-keys \
+  #     --from-literal=ANTHROPIC_API_KEY=... \
+  #     --from-literal=NEBIUS_API_KEY=...
+  providerKeysSecretName: reroute-provider-keys
+
+serviceMonitor:
+  enabled: false # requires kube-prometheus-stack CRDs

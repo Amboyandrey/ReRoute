@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    app: {{ .Release.Name }}-router
+spec:
+  replicas: {{ .Values.router.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-router
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-router
+    spec:
+      containers:
+        - name: router
+          image: "{{ .Values.router.image.repository }}:{{ .Values.router.image.tag }}"
+          imagePullPolicy: {{ .Values.router.image.pullPolicy }}
+          env:
+            - name: ROUTER_PORT
+              value: "{{ .Values.router.port }}"
+          ports:
+            - containerPort: {{ .Values.router.port }}
+          resources:
+            {{- toYaml .Values.router.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.router.port }} }
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.router.port }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    app: {{ .Release.Name }}-router
+spec:
+  selector:
+    app: {{ .Release.Name }}-router
+  ports:
+    - port: {{ .Values.router.port }}
+      targetPort: {{ .Values.router.port }}
+      name: http

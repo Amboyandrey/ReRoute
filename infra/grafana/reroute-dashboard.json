@@ -1,0 +1,63 @@
+{
+  "title": "ReRoute — Routing & Savings",
+  "uid": "reroute-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Route decisions by tier",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (tier) (rate(reroute_route_decisions_total[5m]))",
+          "legendFormat": "{{tier}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cost saved (USD, last 24h)",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(increase(reroute_cost_saved_usd_total[24h]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cost spent (USD, last 24h)",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(increase(reroute_cost_usd_total[24h]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Upstream p95 latency by tier",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, tier) (rate(reroute_upstream_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{tier}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Fallback rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (from_tier, to_tier) (rate(reroute_fallbacks_total[5m]))",
+          "legendFormat": "{{from_tier}} -> {{to_tier}}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-gateway-config
+data:
+  config.yaml: |
+    port: {{ .Values.gateway.port }}
+    router_service_url: "http://{{ .Release.Name }}-router:{{ .Values.router.port }}"
+    router_timeout_ms: 150
+    default_tier: cheap
+    fallback_order: [cheap, mid, strong]
+    max_retries: 2
+    tiers:
+      - name: cheap
+        kind: openai
+        base_url: "http://{{ .Release.Name }}-vllm:{{ .Values.vllm.port }}/v1"
+        model: "{{ .Values.vllm.model }}"
+        api_key_env: ""
+        input_cost_per_1m: 0.0
+        output_cost_per_1m: 0.0
+      - name: mid
+        kind: openai
+        base_url: "https://api.studio.nebius.ai/v1"
+        model: "meta-llama/Llama-3.3-70B-Instruct"
+        api_key_env: "NEBIUS_API_KEY"
+        input_cost_per_1m: 0.13
+        output_cost_per_1m: 0.40
+      - name: strong
+        kind: anthropic
+        base_url: "https://api.anthropic.com"
+        model: "claude-opus-5"
+        api_key_env: "ANTHROPIC_API_KEY"
+        input_cost_per_1m: 5.00
+        output_cost_per_1m: 25.00
